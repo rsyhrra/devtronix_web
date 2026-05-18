@@ -1,0 +1,183 @@
+{
+    "gallery": [
+        {
+            "id": 1773526248,
+            "name": "anu",
+            "photos": [
+                "uploads\/1773526248_WhatsApp_Image_2026-02-23_at_9.23.03_AM.jpeg"
+            ]
+        },
+        {
+            "id": 1773526423,
+            "name": "anu",
+            "photos": [
+                "uploads\/1773526423_IMG_3300.JPG"
+            ]
+        },
+        {
+            "id": 1773532048,
+            "name": "asdfadsf",
+            "date": "2025-07-07",
+            "location": "Lab Jarkom",
+            "description": "dsfadfadsf afasfasdfasdf asdfasdfasdfads asdfadsf",
+            "photos": [
+                "uploads\/1773532048_IMG_3300.JPG"
+            ]
+        }
+    ],
+    "messages": [
+        {
+            "id": 1773526262,
+            "text": "sdsadsddsfds",
+            "date": "14-03-2026 23:11"
+        },
+        {
+            "id": 1773526265,
+            "text": "sdfgsdfgsdfhh",
+            "date": "14-03-2026 23:11"
+        },
+        {
+            "id": 1773528168,
+            "text": "gntengna itu nim 089",
+            "date": "14-03-2026 23:42"
+        },
+        {
+            "id": 1773591615,
+            "text": "qweqw",
+            "date": "15-03-2026 17:20"
+        },
+        {
+            "id": 1773591617,
+            "text": "erwrwerw",
+            "date": "15-03-2026 17:20"
+        },
+        {
+            "id": 1773591620,
+            "text": "erertetert",
+            "date": "15-03-2026 17:20"
+        }
+    ],
+    "members": {
+        "cowo": [
+            {
+                "id": 1773591789,
+                "name": "Muhammad Hamzah",
+                "nim": "089",
+                "asal": "Takalar",
+                "hobi": "Ngeprompt, tidur",
+                "linkedin": "https:\/\/www.linkedin.com\/in\/muhammad-hamzah-648289188\/",
+                "instagram": "anchaaa77",
+                "whatsapp": "6281527280817",
+                "motto": "anu bede twwa",
+                "image": "uploads\/member_1773591789_WhatsApp_Image_2025-08-13_at_16.38.54_cbd867ed.jpg",
+                "julukan": "atmin"
+            },
+            {
+                "id": 1773592160,
+                "name": "Rasyah Risqullah R. A.",
+                "nim": "090",
+                "asal": "Makassar",
+                "hobi": "Mabok",
+                "linkedin": "https:\/\/www.linkedin.com\/in\/rasyah-risqullah-5b314a327\/",
+                "instagram": "rsyhrra",
+                "whatsapp": "6281937536701",
+                "motto": "itu juga lagi ia",
+                "image": "uploads\/member_1773592160_WhatsApp_Image_2026-03-16_at_00.27.49.jpeg",
+                "julukan": "Ketua"
+            }
+        ],
+        "cewe": [
+            {
+                "id": 1773593258,
+                "name": "Natasya Zvonareva",
+                "nim": "091",
+                "asal": "Enrekang",
+                "hobi": "ngatta juga",
+                "linkedin": "",
+                "instagram": "",
+                "whatsapp": "",
+                "motto": "temannaji diva suka ngatta juga",
+                "image": "uploads\/member_1773593258_69b6e2aa9bdfc.png",
+                "julukan": "ngatta"
+            },
+            {
+                "id": 1773593206,
+                "name": "Riskia Nurannisa",
+                "nim": "095",
+                "asal": "Maros",
+                "hobi": "ngatta",
+                "linkedin": "",
+                "instagram": "divannisa__",
+                "whatsapp": "62324234234",
+                "motto": "ngatta juga samaji",
+                "image": "uploads\/member_1773593206_69b6e276daaac.png",
+                "julukan": "ngtta 2"
+            }
+        ]
+    },
+    "schedule": {
+        "7:30 - 8:20": {
+            "Senin": "Data Warehouse",
+            "Selasa": "Jaringan Wireless &amp; Mobile",
+            "Rabu": "Cyber Security",
+            "Kamis": "Rekayasa Jaringan Komputer Lanjut",
+            "Jumat": "Integrasi Data"
+        },
+        "8:20 - 9:10": {
+            "Senin": "Data Warehouse",
+            "Selasa": "Jaringan Wireless &amp; Mobile",
+            "Rabu": "Cyber Security",
+            "Kamis": "Rekayasa Jaringan Komputer Lanjut",
+            "Jumat": "Integrasi Data"
+        },
+        "9:10 - 10:00": {
+            "Senin": "Data Warehouse",
+            "Selasa": "Jaringan Wireless &amp; Mobile",
+            "Rabu": "Cyber Security",
+            "Kamis": "Rekayasa Jaringan Komputer Lanjut",
+            "Jumat": "Integrasi Data"
+        },
+        "10:20 - 11:10": {
+            "Senin": "Data Warehouse",
+            "Selasa": "Jaringan Wireless &amp; Mobile",
+            "Rabu": "Cyber Security",
+            "Kamis": "Rekayasa Jaringan Komputer Lanjut",
+            "Jumat": "Integrasi Data"
+        },
+        "11:10 - 12:00": {
+            "Senin": "Data Warehouse",
+            "Selasa": "",
+            "Rabu": "",
+            "Kamis": "Rekayasa Jaringan Komputer Lanjut",
+            "Jumat": ""
+        },
+        "13:00 - 13:50": {
+            "Senin": "",
+            "Selasa": "Penulisan Akademik",
+            "Rabu": "",
+            "Kamis": "Rekayasa Perangkat Lunak",
+            "Jumat": ""
+        },
+        "13:50 - 14:40": {
+            "Senin": "",
+            "Selasa": "Penulisan Akademik",
+            "Rabu": "",
+            "Kamis": "Rekayasa Perangkat Lunak",
+            "Jumat": "Artificial Intelligence"
+        },
+        "14:40 - 15:30": {
+            "Senin": "",
+            "Selasa": "",
+            "Rabu": "",
+            "Kamis": "",
+            "Jumat": "Artificial Intelligence"
+        },
+        "16:00 - 16:50": {
+            "Senin": "",
+            "Selasa": "",
+            "Rabu": "",
+            "Kamis": "",
+            "Jumat": "Artificial Intelligence"
+        }
+    }
+}
