@@ -17,13 +17,24 @@ function get_room_file($room_id) {
 function get_room_state($room_id) {
     $file = get_room_file($room_id);
     if (!file_exists($file)) return null;
-    return json_decode(file_get_contents($file), true);
+    
+    for ($i = 0; $i < 5; $i++) {
+        $content = file_get_contents($file);
+        if ($content) {
+            $decoded = json_decode($content, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+        usleep(50000); // 50ms
+    }
+    return null;
 }
 
 function save_room_state($room_id, $state) {
     $state['last_activity'] = time();
     $file = get_room_file($room_id);
-    file_put_contents($file, json_encode($state, JSON_PRETTY_PRINT));
+    file_put_contents($file, json_encode($state, JSON_PRETTY_PRINT), LOCK_EX);
 }
 
 // Core Game Functions
@@ -59,6 +70,8 @@ function check_game_over(&$state) {
         if (count($state['hands'][$p_id]) == 0) {
             $state['status'] = 'finished';
             $state['winner'] = $p_id;
+            if (!isset($state['scores'])) $state['scores'] = [];
+            $state['scores'][$p_id] = ($state['scores'][$p_id] ?? 0) + 1;
             return;
         }
     }
@@ -74,22 +87,35 @@ function check_game_over(&$state) {
     
     if ($all_passed) {
         $state['status'] = 'finished';
-        $state['winner'] = 'draw';
+        $state['is_deadlock'] = true;
+        
+        $min_cards = 999;
         $min_dots = 999;
         $winner_id = null;
         
         foreach ($state['players'] as $p) {
             $p_id = $p['id'];
+            $cards = count($state['hands'][$p_id]);
             $dots = 0;
             foreach ($state['hands'][$p_id] as $tile) {
                 $dots += $tile[0] + $tile[1];
             }
-            if ($dots < $min_dots) {
+            if ($cards < $min_cards) {
+                $min_cards = $cards;
                 $min_dots = $dots;
                 $winner_id = $p_id;
+            } else if ($cards == $min_cards) {
+                if ($dots < $min_dots) {
+                    $min_dots = $dots;
+                    $winner_id = $p_id;
+                }
             }
         }
         $state['winner'] = $winner_id;
+        if (!isset($state['scores'])) $state['scores'] = [];
+        if ($winner_id !== null) {
+            $state['scores'][$winner_id] = ($state['scores'][$winner_id] ?? 0) + 1;
+        }
     }
 }
 
@@ -111,6 +137,8 @@ if ($action == 'create_room') {
         'left_end' => null,
         'right_end' => null,
         'winner' => null,
+        'scores' => [$p_id => 0],
+        'round' => 1,
         'last_activity' => time()
     ];
     
@@ -130,11 +158,6 @@ if ($action == 'join_room') {
         exit;
     }
     
-    if ($state['status'] != 'waiting') {
-        echo json_encode(['success' => false, 'error' => 'Game already started']);
-        exit;
-    }
-    
     // Check if user is already in room (re-join)
     if (!empty($req_p_id)) {
         foreach ($state['players'] as $p) {
@@ -143,6 +166,11 @@ if ($action == 'join_room') {
                 exit;
             }
         }
+    }
+
+    if ($state['status'] != 'waiting') {
+        echo json_encode(['success' => false, 'error' => 'Game already started']);
+        exit;
     }
 
     // Ensure unique name
@@ -168,6 +196,8 @@ if ($action == 'join_room') {
     
     $p_id = uniqid();
     $state['players'][] = ['id' => $p_id, 'name' => $name, 'passed' => false];
+    if (!isset($state['scores'])) $state['scores'] = [];
+    $state['scores'][$p_id] = 0;
     
     if (count($state['players']) == 4) {
         // Start game
@@ -321,6 +351,13 @@ if ($action == 'play_card') {
     $placed_tile = $tile;
     
     if ($board_empty) {
+        $round = $state['round'] ?? 1;
+        if ($round == 1) {
+            if ($tile[0] != 6 || $tile[1] != 6) {
+                echo json_encode(['success' => false, 'error' => 'Di ronde pertama, kartu pertama yang turun harus Balak 6 (6-6)!']);
+                exit;
+            }
+        }
         $valid = true;
         $state['left_end'] = $tile[0];
         $state['right_end'] = $tile[1];
@@ -356,9 +393,9 @@ if ($action == 'play_card') {
     array_splice($state['hands'][$p_id], $tile_idx, 1);
     
     if ($board_empty || $side == 'right') {
-        $state['board'][] = ['player' => $p_id, 'tile' => $placed_tile, 'side' => 'right'];
+        array_push($state['board'], ['player' => $p_id, 'tile' => $placed_tile, 'side' => 'right']);
     } else {
-        array_unshift($state['board'], ['player' => $p_id, 'tile' => $placed_tile, 'side' => 'left']);
+        array_push($state['board'], ['player' => $p_id, 'tile' => $placed_tile, 'side' => 'left']);
     }
     
     foreach ($state['players'] as &$p) {
@@ -411,6 +448,49 @@ if ($action == 'pass') {
     check_game_over($state);
     save_room_state($room_id, $state);
     
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+if ($action == 'next_round') {
+    $room_id = $_POST['room_id'] ?? '';
+    $state = get_room_state($room_id);
+    
+    if (!$state || $state['status'] != 'finished') {
+        echo json_encode(['success' => false, 'error' => 'Cannot start next round']);
+        exit;
+    }
+    
+    $winner_idx = 0;
+    if (isset($state['winner']) && $state['winner'] !== 'draw') {
+        foreach ($state['players'] as $idx => $p) {
+            if ($p['id'] == $state['winner']) {
+                $winner_idx = $idx;
+                break;
+            }
+        }
+    }
+    
+    $state['status'] = 'playing';
+    $state['board'] = [];
+    $state['left_end'] = null;
+    $state['right_end'] = null;
+    $state['winner'] = null;
+    $state['round'] = ($state['round'] ?? 1) + 1;
+    $state['turn_index'] = $winner_idx;
+    
+    foreach ($state['players'] as &$p) {
+        $p['passed'] = false;
+    }
+    unset($p);
+    
+    $deck = generate_deck();
+    $state['hands'] = [];
+    foreach ($state['players'] as $p) {
+        $state['hands'][$p['id']] = array_splice($deck, 0, 7);
+    }
+    
+    save_room_state($room_id, $state);
     echo json_encode(['success' => true]);
     exit;
 }

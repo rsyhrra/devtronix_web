@@ -123,6 +123,13 @@ input[type="text"]:focus { outline: none; background: #FFF000; }
       <button class="neo-btn btn-green w-full text-lg mb-4" onclick="joinRoom()">GABUNG SEKARANG</button>
     <?php else: ?>
       <button class="neo-btn btn-yellow w-full text-lg mb-4" onclick="createRoom()">BUAT RUANGAN BARU</button>
+      <div class="relative flex py-4 items-center">
+        <div class="flex-grow border-t-2 border-black"></div>
+        <span class="flex-shrink-0 mx-4 font-black">ATAU</span>
+        <div class="flex-grow border-t-2 border-black"></div>
+      </div>
+      <input type="text" id="manual-room-id" placeholder="Kode Ruangan (Contoh: 4f2fe3)" class="mb-4">
+      <button class="neo-btn btn-cyan w-full text-lg mb-4" onclick="manualJoin()">GABUNG RUANGAN</button>
     <?php endif; ?>
   </div>
 </div>
@@ -196,7 +203,7 @@ input[type="text"]:focus { outline: none; background: #FFF000; }
   <div class="modal-box">
     <h1 class="text-4xl font-black uppercase mb-4" id="win-title">GAME OVER</h1>
     <p class="font-bold text-xl mb-6" id="win-desc"></p>
-    <button class="neo-btn btn-yellow w-full" onclick="location.reload()">MAIN LAGI</button>
+    <button class="neo-btn btn-yellow w-full" onclick="nextRound()" id="btn-next-round">RONDE BERIKUTNYA</button>
   </div>
 </div>
 
@@ -288,6 +295,16 @@ async function joinRoom() {
     }
 }
 
+function manualJoin() {
+    const rId = document.getElementById('manual-room-id').value.trim();
+    if (!rId) {
+        alert("Masukkan kode ruangan!");
+        return;
+    }
+    ROOM_ID = rId;
+    joinRoom();
+}
+
 function setupWaiting() {
     showScreen('waiting');
     const link = window.location.href.split('?')[0] + '?room=' + ROOM_ID;
@@ -342,7 +359,8 @@ function updateUI() {
             let relPos = (i - myIdx + 4) % 4;
             let el = posEls[relPos];
             el.classList.remove('hidden');
-            el.innerText = `${p.name}: ${STATE.hand_counts[p.id]} Kartu`;
+            let score = STATE.scores && STATE.scores[p.id] ? STATE.scores[p.id] : 0;
+            el.innerText = `${p.name}: ${STATE.hand_counts[p.id]} Kartu [Skor: ${score}]`;
             
             if(STATE.turn_index === i) {
                 el.classList.add('active');
@@ -358,7 +376,13 @@ function updateUI() {
         
         let hasValidMove = false;
         if (STATE.left_end === null) {
-            hasValidMove = true;
+            if ((STATE.round || 1) === 1) {
+                STATE.my_hand.forEach(t => {
+                    if (t[0] === 6 && t[1] === 6) hasValidMove = true;
+                });
+            } else {
+                hasValidMove = true;
+            }
         } else {
             STATE.my_hand.forEach(t => {
                 if (t[0] === STATE.left_end || t[1] === STATE.left_end || t[0] === STATE.right_end || t[1] === STATE.right_end) {
@@ -370,15 +394,16 @@ function updateUI() {
         if(isMyTurn) {
             statusEl.innerText = "GILIRAN ANDA!";
             statusEl.className = "font-black text-xl uppercase bg-brutal-green border-3 border-black px-6 py-2 rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] animate-pulse";
-            passBtn.disabled = true; // Selalu disable karena auto-skip atau wajib main
             
             if (!hasValidMove) {
+                passBtn.disabled = false; // Enable button so user can manually skip if they want
                 statusEl.innerText = "AUTO SKIP...";
                 statusEl.className = "font-black text-xl uppercase bg-brutal-pink border-3 border-black px-6 py-2 rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-white";
                 if (!window.autoPassTimer) {
                     window.autoPassTimer = setTimeout(() => passTurn(true), 1500);
                 }
             } else {
+                passBtn.disabled = true; // Disable button because they MUST play
                 if (window.autoPassTimer) {
                     clearTimeout(window.autoPassTimer);
                     window.autoPassTimer = null;
@@ -400,7 +425,23 @@ function updateUI() {
         STATE.my_hand.forEach(tile => {
             const tEl = createTileElement(tile[0], tile[1]);
             tEl.onclick = () => playTile(tile);
-            if(!isMyTurn) tEl.style.opacity = '0.5';
+            
+            let valid = false;
+            if (STATE.left_end === null) {
+                if ((STATE.round || 1) === 1) {
+                    if (tile[0] === 6 && tile[1] === 6) valid = true;
+                } else {
+                    valid = true;
+                }
+            }
+            else if (tile[0] === STATE.left_end || tile[1] === STATE.left_end || tile[0] === STATE.right_end || tile[1] === STATE.right_end) valid = true;
+            
+            if(!isMyTurn) {
+                tEl.style.opacity = '0.5';
+            } else if(valid) {
+                tEl.style.boxShadow = '0 0 15px 5px rgba(0, 255, 102, 0.8)';
+                tEl.style.borderColor = '#00FF66';
+            }
             handEl.appendChild(tEl);
         });
         
@@ -410,37 +451,78 @@ function updateUI() {
         
         const T_W = 60, T_H = 120, G = 4;
         let minX = 0, maxX = 0, minY = 0, maxY = 0;
-        let pL = {x: 0, y: 0, dx: -1, dy: 0};
-        let pR = {x: 0, y: 0, dx: 1, dy: 0};
+        
+        let lastL = null;
+        let lastR = null;
         
         STATE.board.forEach((item, idx) => {
-            const isDouble = (item.tile[0] === item.tile[1]);
-            let movingHoriz = (idx === 0) ? true : ((item.side === 'left') ? pL.dy === 0 : pR.dy === 0);
+            let x, y, w, h;
+            let isDouble = (item.tile[0] === item.tile[1]);
             
-            const isHorizontal = movingHoriz ? !isDouble : isDouble;
-            const w = isHorizontal ? T_H : T_W;
-            const h = isHorizontal ? T_W : T_H;
-            
-            let x, y;
             if (idx === 0) {
+                // First tile (Center)
                 x = 0; y = 0;
-                pL = {x: -w/2, y: 0, dx: -1, dy: 0};
-                pR = {x: w/2, y: 0, dx: 1, dy: 0};
+                w = isDouble ? T_W : T_H;
+                h = isDouble ? T_H : T_W;
+                
+                lastL = { x, y, wasDouble: isDouble, dx: -1, dy: 0 };
+                lastR = { x, y, wasDouble: isDouble, dx: 1, dy: 0 };
             } else {
-                let p = item.side === 'left' ? pL : pR;
+                let p = item.side === 'left' ? lastL : lastR;
                 
-                // bounds checking (Snake turn)
-                if (p.dx === 1 && p.x > 250) { p.dx = 0; p.dy = 1; }
-                else if (p.dx === -1 && p.x < -250) { p.dx = 0; p.dy = -1; }
-                else if (p.dy === 1 && p.y > 100) { p.dx = -1; p.dy = 0; }
-                else if (p.dy === -1 && p.y < -100) { p.dx = 1; p.dy = 0; }
+                let old_dx = p.dx, old_dy = p.dy;
                 
-                x = p.x + p.dx * (w/2 + G);
-                y = p.y + p.dy * (h/2 + G);
+                // Advanced Snaking logic (Left upper half, Right lower half)
+                if (item.side === 'left') {
+                    if (p.dx === -1 && p.x < -200) { p.dx = 0; p.dy = -1; }
+                    else if (p.dx === 1 && p.x > 200) { p.dx = 0; p.dy = -1; }
+                    else if (p.dy === -1) {
+                        if (p.x < 0) { p.dx = 1; p.dy = 0; }
+                        else { p.dx = -1; p.dy = 0; }
+                    }
+                } else {
+                    if (p.dx === 1 && p.x > 200) { p.dx = 0; p.dy = 1; }
+                    else if (p.dx === -1 && p.x < -200) { p.dx = 0; p.dy = 1; }
+                    else if (p.dy === 1) {
+                        if (p.x > 0) { p.dx = -1; p.dy = 0; }
+                        else { p.dx = 1; p.dy = 0; }
+                    }
+                }
                 
-                p.x = x + p.dx * (w/2);
-                p.y = y + p.dy * (h/2);
+                let movingHoriz = (p.dy === 0);
+                let isHorizontal = movingHoriz ? !isDouble : isDouble;
+                w = isHorizontal ? T_H : T_W;
+                h = isHorizontal ? T_W : T_H;
+                
+                let out_cx = p.x;
+                let out_cy = p.y;
+                if (!p.wasDouble) {
+                    out_cx += old_dx * 30;
+                    out_cy += old_dy * 30;
+                }
+                
+                let edgeX = out_cx;
+                let edgeY = out_cy;
+                if (p.dx === -1) edgeX -= 30;
+                else if (p.dx === 1) edgeX += 30;
+                else if (p.dy === -1) edgeY -= 30;
+                else if (p.dy === 1) edgeY += 30;
+                
+                let new_in_cx = edgeX + p.dx * (30 + G);
+                let new_in_cy = edgeY + p.dy * (30 + G);
+                
+                if (isDouble) {
+                    x = new_in_cx;
+                    y = new_in_cy;
+                } else {
+                    x = new_in_cx + p.dx * 30;
+                    y = new_in_cy + p.dy * 30;
+                }
+                
+                p.x = x; p.y = y; p.wasDouble = isDouble;
             }
+            
+            let isHorizontal = (w === T_H);
             
             minX = Math.min(minX, x - w/2);
             maxX = Math.max(maxX, x + w/2);
@@ -453,12 +535,15 @@ function updateUI() {
             tEl.style.top = (y - h/2) + 'px';
             
             // Visual reversing for correct dot alignment
-            if (item.side === 'left') {
-                if (pL.dx === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
-                if (pL.dy === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
-            } else {
-                if (pR.dx === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
-                if (pR.dy === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
+            if (idx > 0) {
+                let p = item.side === 'left' ? lastL : lastR;
+                if (item.side === 'left') {
+                    if (p.dx === 1) tEl.style.flexDirection = 'row-reverse';
+                    if (p.dy === 1) tEl.style.flexDirection = 'column-reverse';
+                } else {
+                    if (p.dx === -1) tEl.style.flexDirection = 'row-reverse';
+                    if (p.dy === -1) tEl.style.flexDirection = 'column-reverse';
+                }
             }
             
             boardTrack.appendChild(tEl);
@@ -481,21 +566,39 @@ function updateUI() {
             document.getElementById('pause-modal').classList.add('active');
         } else if(STATE.status === 'aborted') {
             document.getElementById('pause-modal').classList.remove('active');
-            alert("Permainan dibatalkan karena pemain terputus terlalu lama.");
-            location.href = 'index.php';
+            if(!window.abortedAlerted) {
+                window.abortedAlerted = true;
+                setTimeout(() => {
+                    alert("Permainan dibatalkan karena pemain terputus terlalu lama.");
+                    window.location.href = 'index.php';
+                }, 100);
+            }
         } else {
             document.getElementById('pause-modal').classList.remove('active');
         }
 
         if(STATE.status === 'finished') {
-            clearInterval(pollInterval);
-            let winnerName = 'Draw';
+            document.getElementById('winner-modal').classList.add('active');
+            
+            let winnerName = 'Unknown';
             if(STATE.winner !== 'draw') {
                 const w = STATE.players.find(p => p.id === STATE.winner);
                 winnerName = w ? w.name : 'Unknown';
             }
-            document.getElementById('win-desc').innerText = `Pemenang: ${winnerName}!`;
-            document.getElementById('winner-modal').classList.add('active');
+            
+            if (STATE.is_deadlock) {
+                document.getElementById('win-title').innerText = "KANDANG (DEADLOCK)!";
+                document.getElementById('win-desc').innerText = `Permainan buntu!\n${winnerName} menang karena memiliki sisa kartu & bulatan paling sedikit.`;
+            } else {
+                document.getElementById('win-title').innerText = "GAME OVER";
+                document.getElementById('win-desc').innerText = `Pemenang Ronde Ini: ${winnerName}!\nSemua pemain mendapatkan +1 Poin jika menang.`;
+            }
+            
+            // Only show Next Round button to the winner (or player 0 if draw/unknown for fallback)
+            let isWinner = (STATE.winner === PLAYER_ID) || (!STATE.winner && STATE.players[0].id === PLAYER_ID);
+            document.getElementById('btn-next-round').style.display = isWinner ? 'block' : 'none';
+        } else {
+            document.getElementById('winner-modal').classList.remove('active');
         }
     }
 }
@@ -558,6 +661,9 @@ async function executePlay(tile, side) {
 async function passTurn(auto = false) {
     if(!auto && !confirm("Yakin ingin melewati giliran (Hanya jika benar-benar tidak ada kartu yang cocok)?")) return;
     
+    // Clear timer reference so it can be re-triggered if this fails
+    window.autoPassTimer = null;
+    
     const res = await apiCall('pass', {
         room_id: ROOM_ID,
         player_id: PLAYER_ID
@@ -567,6 +673,23 @@ async function passTurn(auto = false) {
         alert(res.error);
     } else {
         fetchState();
+    }
+}
+
+async function nextRound() {
+    document.getElementById('btn-next-round').innerText = "MENYIAPKAN...";
+    document.getElementById('btn-next-round').disabled = true;
+    const res = await apiCall('next_round', { room_id: ROOM_ID });
+    if(res.success) {
+        fetchState();
+        setTimeout(() => {
+            document.getElementById('btn-next-round').innerText = "RONDE BERIKUTNYA";
+            document.getElementById('btn-next-round').disabled = false;
+        }, 2000);
+    } else {
+        alert(res.error);
+        document.getElementById('btn-next-round').innerText = "RONDE BERIKUTNYA";
+        document.getElementById('btn-next-round').disabled = false;
     }
 }
 
