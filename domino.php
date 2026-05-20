@@ -81,9 +81,10 @@ body {
 .board-container {
     width: 100%; max-width: 900px; height: 400px; background: #00FF66; border: 4px solid #000;
     border-radius: 20px; box-shadow: 8px 8px 0px 0px rgba(0,0,0,1); margin: 20px 0;
-    position: relative; overflow: auto; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
 }
-.board-track { display: flex; align-items: center; gap: 4px; padding: 20px; }
+.board-track { position: relative; width: 0; height: 0; transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
+.domino-tile.on-board { position: absolute; transform: none !important; cursor: default; }
 
 .player-info { border: 3px solid #000; border-radius: 12px; padding: 10px; font-weight: 900; background: #fff; box-shadow: 3px 3px 0px 0px rgba(0,0,0,1); text-align: center; }
 .player-info.active { background: #FFF000; animation: pulse 1s infinite; }
@@ -196,6 +197,16 @@ input[type="text"]:focus { outline: none; background: #FFF000; }
     <h1 class="text-4xl font-black uppercase mb-4" id="win-title">GAME OVER</h1>
     <p class="font-bold text-xl mb-6" id="win-desc"></p>
     <button class="neo-btn btn-yellow w-full" onclick="location.reload()">MAIN LAGI</button>
+  </div>
+</div>
+
+<!-- PAUSE MODAL -->
+<div class="modal-bg" id="pause-modal">
+  <div class="modal-box">
+    <h2 class="text-3xl font-black uppercase mb-4 text-brutal-pink animate-pulse">Menunggu...</h2>
+    <p class="font-bold mb-4">Pemain <span id="disconnected-player-name" class="bg-brutal-yellow px-2 border-2 border-black">...</span> terputus!</p>
+    <div class="text-5xl font-black mb-6" id="disconnect-timer">30</div>
+    <p class="text-sm font-bold text-slate-600">Permainan dibatalkan jika waktu habis.</p>
   </div>
 </div>
 
@@ -313,7 +324,7 @@ function updateUI() {
         STATE.players.forEach(p => {
             list.innerHTML += `<li>✅ ${p.name} ${p.id===PLAYER_ID ? '(Anda)' : ''}</li>`;
         });
-    } else if(STATE.status === 'playing' || STATE.status === 'finished') {
+    } else if(STATE.status === 'playing' || STATE.status === 'finished' || STATE.status === 'paused') {
         if(document.getElementById('waiting').classList.contains('active') || document.getElementById('lobby').classList.contains('active')) {
             showScreen('game');
         }
@@ -344,11 +355,40 @@ function updateUI() {
         const isMyTurn = (STATE.players[STATE.turn_index].id === PLAYER_ID);
         const statusEl = document.getElementById('status-info');
         const passBtn = document.getElementById('btn-pass');
+        
+        let hasValidMove = false;
+        if (STATE.left_end === null) {
+            hasValidMove = true;
+        } else {
+            STATE.my_hand.forEach(t => {
+                if (t[0] === STATE.left_end || t[1] === STATE.left_end || t[0] === STATE.right_end || t[1] === STATE.right_end) {
+                    hasValidMove = true;
+                }
+            });
+        }
+
         if(isMyTurn) {
             statusEl.innerText = "GILIRAN ANDA!";
             statusEl.className = "font-black text-xl uppercase bg-brutal-green border-3 border-black px-6 py-2 rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] animate-pulse";
-            passBtn.disabled = false;
+            passBtn.disabled = true; // Selalu disable karena auto-skip atau wajib main
+            
+            if (!hasValidMove) {
+                statusEl.innerText = "AUTO SKIP...";
+                statusEl.className = "font-black text-xl uppercase bg-brutal-pink border-3 border-black px-6 py-2 rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-white";
+                if (!window.autoPassTimer) {
+                    window.autoPassTimer = setTimeout(() => passTurn(true), 1500);
+                }
+            } else {
+                if (window.autoPassTimer) {
+                    clearTimeout(window.autoPassTimer);
+                    window.autoPassTimer = null;
+                }
+            }
         } else {
+            if (window.autoPassTimer) {
+                clearTimeout(window.autoPassTimer);
+                window.autoPassTimer = null;
+            }
             statusEl.innerText = "Menunggu Giliran...";
             statusEl.className = "font-black text-xl uppercase bg-white border-3 border-black px-6 py-2 rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]";
             passBtn.disabled = true;
@@ -364,22 +404,89 @@ function updateUI() {
             handEl.appendChild(tEl);
         });
         
-        // Render Board
+        // Render Board (Snaking & Auto-Zoom)
         const boardTrack = document.getElementById('board-track');
         boardTrack.innerHTML = '';
-        STATE.board.forEach(item => {
-            // item.tile = [a,b]
+        
+        const T_W = 60, T_H = 120, G = 4;
+        let minX = 0, maxX = 0, minY = 0, maxY = 0;
+        let pL = {x: 0, y: 0, dx: -1, dy: 0};
+        let pR = {x: 0, y: 0, dx: 1, dy: 0};
+        
+        STATE.board.forEach((item, idx) => {
             const isDouble = (item.tile[0] === item.tile[1]);
-            // If double, make it vertical, else horizontal
-            const tEl = createTileElement(item.tile[0], item.tile[1], !isDouble);
+            let movingHoriz = (idx === 0) ? true : ((item.side === 'left') ? pL.dy === 0 : pR.dy === 0);
+            
+            const isHorizontal = movingHoriz ? !isDouble : isDouble;
+            const w = isHorizontal ? T_H : T_W;
+            const h = isHorizontal ? T_W : T_H;
+            
+            let x, y;
+            if (idx === 0) {
+                x = 0; y = 0;
+                pL = {x: -w/2, y: 0, dx: -1, dy: 0};
+                pR = {x: w/2, y: 0, dx: 1, dy: 0};
+            } else {
+                let p = item.side === 'left' ? pL : pR;
+                
+                // bounds checking (Snake turn)
+                if (p.dx === 1 && p.x > 250) { p.dx = 0; p.dy = 1; }
+                else if (p.dx === -1 && p.x < -250) { p.dx = 0; p.dy = -1; }
+                else if (p.dy === 1 && p.y > 100) { p.dx = -1; p.dy = 0; }
+                else if (p.dy === -1 && p.y < -100) { p.dx = 1; p.dy = 0; }
+                
+                x = p.x + p.dx * (w/2 + G);
+                y = p.y + p.dy * (h/2 + G);
+                
+                p.x = x + p.dx * (w/2);
+                p.y = y + p.dy * (h/2);
+            }
+            
+            minX = Math.min(minX, x - w/2);
+            maxX = Math.max(maxX, x + w/2);
+            minY = Math.min(minY, y - h/2);
+            maxY = Math.max(maxY, y + h/2);
+            
+            const tEl = createTileElement(item.tile[0], item.tile[1], isHorizontal);
+            tEl.classList.add('on-board');
+            tEl.style.left = (x - w/2) + 'px';
+            tEl.style.top = (y - h/2) + 'px';
+            
+            // Visual reversing for correct dot alignment
+            if (item.side === 'left') {
+                if (pL.dx === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
+                if (pL.dy === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
+            } else {
+                if (pR.dx === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
+                if (pR.dy === -1) tEl.style.flexDirection = isHorizontal ? 'row-reverse' : 'column-reverse';
+            }
+            
             boardTrack.appendChild(tEl);
         });
         
-        // Scroll to end of board
-        const bc = document.getElementById('board-container');
-        bc.scrollLeft = bc.scrollWidth;
+        // Calculate Scale for Auto-Zoom
+        let bw = Math.max(200, maxX - minX + 80);
+        let bh = Math.max(200, maxY - minY + 80);
+        let contW = document.getElementById('board-container').clientWidth;
+        let contH = document.getElementById('board-container').clientHeight;
         
-        // Game Over
+        let scale = Math.min(1.2, Math.min(contW / bw, contH / bh));
+        boardTrack.style.transform = `scale(${scale})`;
+        
+        // Handle Game Statuses (Paused, Aborted, Finished)
+        if(STATE.status === 'paused') {
+            document.getElementById('disconnected-player-name').innerText = STATE.disconnected_player || 'Seseorang';
+            let remain = Math.max(0, STATE.disconnect_timer - STATE.current_time);
+            document.getElementById('disconnect-timer').innerText = remain;
+            document.getElementById('pause-modal').classList.add('active');
+        } else if(STATE.status === 'aborted') {
+            document.getElementById('pause-modal').classList.remove('active');
+            alert("Permainan dibatalkan karena pemain terputus terlalu lama.");
+            location.href = 'index.php';
+        } else {
+            document.getElementById('pause-modal').classList.remove('active');
+        }
+
         if(STATE.status === 'finished') {
             clearInterval(pollInterval);
             let winnerName = 'Draw';
@@ -448,8 +555,8 @@ async function executePlay(tile, side) {
     }
 }
 
-async function passTurn() {
-    if(!confirm("Yakin ingin melewati giliran (Hanya jika benar-benar tidak ada kartu yang cocok)?")) return;
+async function passTurn(auto = false) {
+    if(!auto && !confirm("Yakin ingin melewati giliran (Hanya jika benar-benar tidak ada kartu yang cocok)?")) return;
     
     const res = await apiCall('pass', {
         room_id: ROOM_ID,

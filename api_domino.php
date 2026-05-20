@@ -222,8 +222,49 @@ if ($action == 'get_state') {
         echo json_encode(['success' => false, 'error' => 'Room not found']);
         exit;
     }
-    
+
+    $time_now = time();
+    $all_active = true;
+    $disconnected_player = null;
+
+    foreach ($state['players'] as &$p) {
+        if ($p['id'] == $p_id) {
+            $p['last_seen'] = $time_now;
+        }
+        
+        if (in_array($state['status'], ['playing', 'paused'])) {
+            $last = $p['last_seen'] ?? $time_now;
+            if ($time_now - $last > 8) {
+                $all_active = false;
+                if (!$disconnected_player) $disconnected_player = $p['name'];
+            }
+        }
+    }
+    unset($p);
+
+    if ($state['status'] == 'playing' && !$all_active) {
+        $state['status'] = 'paused';
+        $state['disconnect_timer'] = $time_now + 30;
+        $state['disconnected_player'] = $disconnected_player;
+    } else if ($state['status'] == 'paused') {
+        if ($all_active) {
+            $state['status'] = 'playing';
+            unset($state['disconnect_timer']);
+            unset($state['disconnected_player']);
+        } else {
+            if ($time_now > ($state['disconnect_timer'] ?? 0)) {
+                $state['status'] = 'aborted';
+            } else {
+                $state['disconnected_player'] = $disconnected_player;
+            }
+        }
+    }
+
     $safe_state = $state;
+    // Update state file to record last_seen and status changes
+    save_room_state($room_id, $state);
+    
+    $safe_state['current_time'] = $time_now; // send server time for countdown
     $safe_state['my_hand'] = isset($state['hands'][$p_id]) ? $state['hands'][$p_id] : [];
     
     $hand_counts = [];
