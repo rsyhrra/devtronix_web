@@ -204,7 +204,7 @@ input[type="text"]:focus { outline: none; background: #FFF000; }
 // Logic Frontend
 const API_URL = 'api_domino.php';
 let ROOM_ID = document.getElementById('room-input').value;
-let PLAYER_ID = localStorage.getItem('domino_pid_' + ROOM_ID) || null;
+let PLAYER_ID = sessionStorage.getItem('domino_pid_' + ROOM_ID) || null;
 let STATE = null;
 let pollInterval = null;
 let selectedTile = null;
@@ -260,17 +260,17 @@ async function createRoom() {
     if(res.success) {
         ROOM_ID = res.room_id;
         PLAYER_ID = res.player_id;
-        localStorage.setItem('domino_pid_' + ROOM_ID, PLAYER_ID);
+        sessionStorage.setItem('domino_pid_' + ROOM_ID, PLAYER_ID);
         setupWaiting();
     }
 }
 
 async function joinRoom() {
     const name = document.getElementById('player-name').value.trim() || 'Player Join';
-    const res = await apiCall('join_room', { room_id: ROOM_ID, name });
+    const res = await apiCall('join_room', { room_id: ROOM_ID, name: name, player_id: PLAYER_ID || '' });
     if(res.success) {
         PLAYER_ID = res.player_id;
-        localStorage.setItem('domino_pid_' + ROOM_ID, PLAYER_ID);
+        sessionStorage.setItem('domino_pid_' + ROOM_ID, PLAYER_ID);
         setupWaiting();
     } else {
         alert(res.error);
@@ -468,6 +468,16 @@ if(ROOM_ID && PLAYER_ID) {
     // Attempt re-join
     joinRoom();
 }
+
+window.addEventListener('beforeunload', function() {
+    if (ROOM_ID && PLAYER_ID && STATE && STATE.status === 'waiting') {
+        const formData = new FormData();
+        formData.append('action', 'leave_room');
+        formData.append('room_id', ROOM_ID);
+        formData.append('player_id', PLAYER_ID);
+        navigator.sendBeacon(API_URL, formData);
+    }
+});
 </script>
 
 </body>

@@ -585,6 +585,22 @@ foreach ($days as $day) {
                             </a>
                         </div>
                     </div>
+
+                    <!-- Game Card: Domino -->
+                    <div class="neo-btn bg-white dark:bg-[#1E1E1E] rounded-xl border-[3px] border-black dark:border-white overflow-hidden shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)] flex flex-col h-full group">
+                        <div class="h-36 bg-[#FF8A00] flex items-center justify-center relative overflow-hidden border-b-[3px] border-black dark:border-white">
+                            <div class="h-24 w-24 rounded-full border-[3px] border-black bg-white p-1 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] group-hover:scale-110 transition-transform duration-500 flex items-center justify-center text-5xl">
+                                🁣
+                            </div>
+                        </div>
+                        <div class="p-6 flex flex-col flex-1">
+                            <h3 class="text-xl font-black text-black dark:text-white mb-2 uppercase">Domino</h3>
+                            <p class="text-slate-700 dark:text-slate-300 text-sm mb-6 flex-1 font-medium">Mainkan Domino klasik bersama teman-temanmu secara online!</p>
+                            <a href="domino.php" class="neo-btn inline-flex items-center justify-center w-full bg-[#FF8A00] text-black border-2 border-black font-black px-4 py-2.5 rounded-lg text-sm transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                                Mainkan
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Trivia Link -->

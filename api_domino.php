@@ -122,6 +122,7 @@ if ($action == 'create_room') {
 if ($action == 'join_room') {
     $room_id = $_POST['room_id'] ?? '';
     $name = substr($_POST['name'] ?? 'Player', 0, 20);
+    $req_p_id = $_POST['player_id'] ?? '';
     $state = get_room_state($room_id);
     
     if (!$state) {
@@ -135,10 +136,28 @@ if ($action == 'join_room') {
     }
     
     // Check if user is already in room (re-join)
-    foreach ($state['players'] as $p) {
-        if ($p['name'] == $name) {
-            echo json_encode(['success' => true, 'room_id' => $room_id, 'player_id' => $p['id']]);
-            exit;
+    if (!empty($req_p_id)) {
+        foreach ($state['players'] as $p) {
+            if ($p['id'] == $req_p_id) {
+                echo json_encode(['success' => true, 'room_id' => $room_id, 'player_id' => $p['id']]);
+                exit;
+            }
+        }
+    }
+
+    // Ensure unique name
+    $original_name = $name;
+    $counter = 2;
+    $name_exists = true;
+    while ($name_exists) {
+        $name_exists = false;
+        foreach ($state['players'] as $p) {
+            if ($p['name'] == $name) {
+                $name_exists = true;
+                $name = $original_name . ' ' . $counter;
+                $counter++;
+                break;
+            }
         }
     }
     
@@ -171,6 +190,26 @@ if ($action == 'join_room') {
     
     save_room_state($room_id, $state);
     echo json_encode(['success' => true, 'room_id' => $room_id, 'player_id' => $p_id]);
+    exit;
+}
+
+if ($action == 'leave_room') {
+    $room_id = $_POST['room_id'] ?? '';
+    $p_id = $_POST['player_id'] ?? '';
+    $state = get_room_state($room_id);
+    
+    if ($state && $state['status'] == 'waiting') {
+        $new_players = [];
+        foreach ($state['players'] as $p) {
+            if ($p['id'] !== $p_id) {
+                $new_players[] = $p;
+            }
+        }
+        $state['players'] = $new_players;
+        save_room_state($room_id, $state);
+    }
+    
+    echo json_encode(['success' => true]);
     exit;
 }
 
